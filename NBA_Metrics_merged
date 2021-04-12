@@ -1,0 +1,128 @@
+USE lswans -- this is the name of our database on the class server 
+
+-- group memebers: Beneyam Mesele, Hudson Potts, Lucas Swanson, Zerabruk Abraham 
+
+
+-- Part 1: create tables 
+
+CREATE TABLE game( -- this will create the game table which has the necessary attributes for a single game 
+    game_id Integer PRIMARY KEY, 
+    season_id int FOREIGN KEY REFERENCES seasons(season_id),
+    game_date DATE, hometeam int FOREIGN KEY REFERENCES team(team_id),
+    awayteam int FOREIGN KEY REFERENCES team(team_id), location VARCHAR (50)
+    );
+
+CREATE TABLE teamstats(-- this will create the team stats table which has the statistics for a team's game performance 
+    team_id INTEGER, game_id INTEGER, PRIMARY KEY(team_id, game_id), points INTEGER, 
+    rebounds INTEGER, assists INTEGER, win INTEGER, loss INTEGER, fouls INTEGER, 
+    net_points INTEGER, blocks INTEGER, steals INTEGER, turnovers INTEGER, 
+    fga INTEGER, fgm INTEGER, minutes_played INTEGER, three_pts_taken INTEGER, 
+    three_pts_made INTEGER
+    );
+
+create table player_salaries ( -- this will create the player salaries table which has the required information from a financial standpoint 
+   owner VARCHAR(50), general_manager VARCHAR (50), player_id int, primary key(owner, general_manager, player_id), 
+   salary int,
+   season_id int FOREIGN key REFERENCES seasons(season_id)
+);
+
+create table players (-- This will create the players table which has the attributes for a single player 
+player_id INT primary key,
+player_name VARCHAR (50), 
+height_inches int, 
+position  VARCHAR (50), 
+team_id int FOREIGN key REFERENCES team(team_id), 
+season_id int FOREIGN key REFERENCES seasons(season_id)
+ )
+
+create table seasons(season_id int PRIMARY KEY, startdate DATE, endate DATE)-- This will create the seasons table which specifies the start and end date of the season
+
+CREATE TABLE team (team_id int primary key, -- this will create the team table which has the attributes for a single team 
+                    teamname varchar (50),
+                    city varchar (50),
+                    headcoach varchar (50),
+                    wins int,
+                    losses int,
+                    season_id int foreign key REFERENCES seasons(season_id));
+
+
+-- this will create the player stats which is similar to the team stats but this is the perfromance of a single player 
+CREATE TABLE playerstats (player_id int, team_id int, game_id int, PRIMARY KEY(player_id, team_id, game_id),
+                            points int,
+                            rebounds int,
+                            assists int,
+                            fouls int,
+                            "+/-" int,
+                            blocks int,
+                            steals int,
+                            turnovers int,
+                            fga int, -- field goals attempted
+                            fgm int, -- field goals made
+                            minutesplayed int,
+                            "3pa" int, -- 3 pointers attempted
+                            "3pm" int) -- 3 pointers made
+
+
+-- Part 2: create 4 views 
+
+-- View 1: Write a query to find the point break down of the team that scored the most points during the season. 
+-- The break down should include, the location of the game, the number of points, the player in that database that scored points for that team and the player’s name 
+create view point_breakdown as (
+    SELECT top 5 MAX(b.points) as max_points, c.teamname, a.[location], d.player_name, e.points 
+    from game a 
+    join teamstats b on b.game_id =a.game_id
+    join team c on c.team_id = b.team_id
+    join players d on d.team_id =c.team_id
+    join playerstats e on e.player_id = d.player_id
+    group by c.teamname, a.[location], b.points, d.player_name, e.points
+    order by b.points desc 
+)
+go 
+
+SELECT *
+from point_breakdown
+
+-- View 2:  Write a query to find the top 5 teams with the most total rebounds during the 2018-2019 season. (order by desc)
+CREATE VIEW top_rebounding_teams AS (
+    SELECT TOP 5 T.teamname, SUM(TS.o_reb) + SUM(TS.d_reb) AS 'total_rebounds'
+    FROM team T 
+        JOIN teamstats TS ON T.team_id = TS.team_id
+    WHERE T.season_id = 1   -- 2018-2019 season is season 1
+    GROUP BY T.teamname
+    ORDER BY SUM(TS.o_reb) + SUM(TS.d_reb) DESC
+)
+
+SELECT *
+FROM top_rebounding_teams
+
+-- View 3 Write a query to find the top 4 shooting gaurds with the highest amount of assists, the player's name and the team's name during the 2019 season and their team name
+
+create view guard_assist as ( 
+select top 4 (a.assists) as Num_assist, b.player_name, t.teamname
+from playerstats a 
+join players b on b.player_id = a.player_id
+join team t on t.team_id = a.team_id
+where b.[position] = 'Shooting Guard'
+group by a.assists, b.player_name, t.teamname
+order by num_assist desc 
+) 
+
+select *
+from guard_assist
+
+-- View 4: Who scores the most points during the 2018-2019 season that was paid under $5 million.
+
+CREATE VIEW vw_sub_5m_salary AS(
+SELECT TOP 5 MAX(pstat.points) AS 'points', p.player_name, psal.salary from playerstats pstat 
+    JOIN players p ON pstat.player_id = p.player_id
+    JOIN player_salaries psal ON psal.player_id = p.player_id
+group by salary, player_name, points
+HAVING salary < 5000000
+ORDER BY MAX(points) DESC
+)
+GO
+
+select *
+from vw_sub_5m_salary
+
+
